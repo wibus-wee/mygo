@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"html"
 	"net/http"
@@ -47,7 +48,7 @@ func holds(state []byte, s string) bool {
 
 // savedSession saves the session state of a window that visited "one",
 // scrolled to 700, then "two", typed "typed second" into its field and
-// scrolled to 1200.
+// scrolled to 1200, once WebKit saved the latter two.
 func savedSession(t *testing.T) []byte {
 	t.Helper()
 	w := newWindow(t, mygo.WindowOptions{Title: "Session", Width: 300, Height: 200})
@@ -58,16 +59,24 @@ func savedSession(t *testing.T) []byte {
 		t.Fatal(err)
 	}
 	if runtime.GOOS != "windows" {
-		// WebKit saves the form fields of the page it shows as the page
-		// goes out of view, and tells it to the UI process later.
+		// WebKit saves the scroll position of the page it shows a moment
+		// after it stopped scrolling, and its form fields as the page goes
+		// out of view, and tells them to the UI process later.
 		w.Hide()
 		wait.Until(t, "WebKit saving the page hidden", func() bool {
 			state, err = w.Page().SessionState()
-			return err == nil && holds(state, "typed second")
+			return err == nil && holds(state, "typed second") && holdsScroll(state, 0, 1200)
 		})
 	}
 	w.Destroy()
 	return state
+}
+
+// holdsScroll reports whether a session state holds the scroll position
+// (x, y), as WebKit encodes it on macOS and in WebKitGTK: two 32-bit
+// integers in a row, little-endian on the machines MyGo runs on.
+func holdsScroll(state []byte, x, y int32) bool {
+	return bytes.Contains(state, binary.LittleEndian.AppendUint32(binary.LittleEndian.AppendUint32(nil, uint32(x)), uint32(y)))
 }
 
 // A page's session state brings back its back/forward list in a new
