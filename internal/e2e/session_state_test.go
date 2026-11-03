@@ -11,6 +11,7 @@ import (
 	"path"
 	"runtime"
 	"testing"
+	"time"
 	"unicode/utf16"
 
 	"github.com/egoist/mygo"
@@ -62,9 +63,16 @@ func savedSession(t *testing.T) []byte {
 		// WebKit saves the scroll position of the page it shows a moment
 		// after it stopped scrolling, and its form fields as the page goes
 		// out of view, and tells them to the UI process later.
+		waitFor(t, w, `document.visibilityState === "visible"`)
+		t.Logf("probe: before Hide: %v", mustEval(t, w, `JSON.stringify([scrollY, field.value, document.visibilityState])`))
 		w.Hide()
+		last := ""
 		wait.Until(t, "WebKit saving the page hidden", func() bool {
 			state, err = w.Page().SessionState()
+			if s := fmt.Sprint(err == nil, holds(state, "typed second"), holdsScroll(state, 0, 1200), holdsScroll(state, 0, 700), len(state)); s != last {
+				t.Logf("probe: saved %s", s)
+				last = s
+			}
 			return err == nil && holds(state, "typed second") && holdsScroll(state, 0, 1200)
 		})
 	}
@@ -124,8 +132,18 @@ func TestSessionStateHiddenWindow(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		return
 	}
+	t.Logf("probe: before Show: %v", mustEval(t, r, `JSON.stringify([scrollY, field.value, document.visibilityState])`))
+	t.Logf("probe: Show at %s", time.Now().Format("15:04:05.000"))
 	r.Show()
 	waitFor(t, r, `document.visibilityState === "visible"`)
+	last := ""
+	for start := time.Now(); time.Since(start) < 500*time.Millisecond; {
+		if v := fmt.Sprint(mustEval(t, r, `JSON.stringify([scrollY, document.visibilityState])`)); v != last {
+			t.Logf("probe: visible at %s: %v", time.Now().Format("15:04:05.000"), v)
+			last = v
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 	waitFor(t, r, `scrollY === 1200`)
 	waitFor(t, r, `field.value === "typed second"`)
 }

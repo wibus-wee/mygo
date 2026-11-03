@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/ebitengine/purego"
 	"github.com/ebitengine/purego/objc"
@@ -1875,6 +1876,7 @@ func (w *window) RestoreSessionState(state []byte) bool {
 		ok = send(send(w.web, "backForwardList"), "currentItem") != 0
 	})
 	w.restoreScroll = ok && !occlusionVisible(w.win)
+	log.Printf("probe: %q RestoreSessionState ok %v restoreScroll %v visible %v", w.opts.Title, ok, w.restoreScroll, sendBool(w.win, "isVisible"))
 	return ok
 }
 
@@ -1893,6 +1895,7 @@ func (w *window) RestoreSessionState(state []byte) bool {
 // _pageRefForTransitionToWKWebView, looked up with respondsToSelector:,
 // and WKPageTryRestoreScrollPosition, bound on first use.
 func (w *window) restoreScrollOnScreen() {
+	log.Printf("probe: %q occlusion change: restoreScroll %v closed %v occlusionVisible %v", w.opts.Title, w.restoreScroll, w.closed, !w.closed && occlusionVisible(w.win))
 	if !w.restoreScroll || w.closed || !occlusionVisible(w.win) {
 		return
 	}
@@ -1902,20 +1905,29 @@ func (w *window) restoreScrollOnScreen() {
 	}
 	// WebKit tells the page it shows after the event that told WebKit,
 	// as this one did.
-	w.b.post(func() { w.doAfter("_doAfterActivityStateUpdate:", w.restoreScrollAfterDrawing) })
+	w.b.post(func() {
+		log.Printf("probe: %q posted", w.opts.Title)
+		w.doAfter("_doAfterActivityStateUpdate:", w.restoreScrollAfterDrawing)
+	})
 }
 
 // restoreScrollAfterDrawing is restoreScrollOnScreen's restore, after the
 // page drew next.
-func (w *window) restoreScrollAfterDrawing() {
+func (w *window) restoreScrollAfterDrawing() { w.restoreScrollRound(0) }
+
+func (w *window) restoreScrollRound(n int) {
 	w.doAfter("_doAfterNextPresentationUpdate:", func() {
 		loadTryRestoreScroll.Do(func() {
 			if _, err := purego.Dlsym(libWebKit, "WKPageTryRestoreScrollPosition"); err == nil {
 				purego.RegisterLibFunc(&tryRestoreScroll, libWebKit, "WKPageTryRestoreScrollPosition")
 			}
 		})
+		log.Printf("probe: %q presentation %d at %s, TryRestore", w.opts.Title, n, time.Now().Format("15:04:05.000"))
 		if tryRestoreScroll != nil {
 			tryRestoreScroll(send(w.web, "_pageRefForTransitionToWKWebView"))
+		}
+		if n < 8 {
+			w.restoreScrollRound(n + 1)
 		}
 	})
 }

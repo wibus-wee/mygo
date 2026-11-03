@@ -4,7 +4,7 @@ on: pull_request
 jobs:
   probe:
     runs-on: macos-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v6
@@ -13,7 +13,13 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun run build
-      - name: Loop
+      - name: Hidden alone
+        continue-on-error: true
         env:
           MYGO_E2E: 1
-        run: go test ./internal/e2e -run '^TestSessionState(HiddenWindow)?$' -v -count=25
+        run: go test ./internal/e2e -run '^TestSessionStateHiddenWindow$' -v -count=4 -timeout 30m
+      - name: Both
+        continue-on-error: true
+        env:
+          MYGO_E2E: 1
+        run: go test ./internal/e2e -run '^TestSessionState(HiddenWindow)?$' -v -count=3 -timeout 30m
