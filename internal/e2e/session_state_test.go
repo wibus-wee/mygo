@@ -45,11 +45,11 @@ func holds(state []byte, s string) bool {
 	return bytes.Contains(state, []byte(s)) || bytes.Contains(state, u)
 }
 
-// A page's session state brings back its back/forward list in a new
-// window, with what WebKit saved: the page's scroll position and form
-// field as its window was hidden, and the entry before's scroll position
-// as the page left it. On Windows it brings back the page alone.
-func TestSessionState(t *testing.T) {
+// savedSession saves the session state of a window that visited "one",
+// scrolled to 700, then "two", typed "typed second" into its field and
+// scrolled to 1200.
+func savedSession(t *testing.T) []byte {
+	t.Helper()
 	w := newWindow(t, mygo.WindowOptions{Title: "Session", Width: 300, Height: 200})
 	visit(t, w, "one", "typed first", 700)
 	visit(t, w, "two", "typed second", 1200)
@@ -67,7 +67,19 @@ func TestSessionState(t *testing.T) {
 		})
 	}
 	w.Destroy()
+	return state
+}
 
+// A page's session state brings back its back/forward list in a new
+// window, with what WebKit saved: the page's scroll position and form
+// field as its window was hidden, and the entry before's scroll position
+// as the page left it. On Windows it brings back the page alone.
+//
+// On macOS the page may load before the window server puts the new
+// window on screen, and WebKit then puts it back at the top, as in
+// TestSessionStateHiddenWindow: the backend has WebKit restore it again.
+func TestSessionState(t *testing.T) {
+	state := savedSession(t)
 	r := newWindow(t, mygo.WindowOptions{Title: "Session restored", Width: 300, Height: 200, URL: "app://localhost/session/wrong",
 		Page: mygo.PageOptions{SessionState: state}})
 	waitFor(t, r, `document.title === "two" && document.readyState === "complete"`)
@@ -89,4 +101,22 @@ func TestSessionState(t *testing.T) {
 	if !r.Page().CanGoForward() {
 		t.Error("CanGoForward = false back in the page restored")
 	}
+}
+
+// A session state brought back in a window made hidden keeps its scroll
+// position once the window shows. WebKit on macOS puts a page that
+// scrolled before its window first showed on screen back at the top as
+// the window does; the backend has WebKit restore the position again.
+func TestSessionStateHiddenWindow(t *testing.T) {
+	state := savedSession(t)
+	r := newWindow(t, mygo.WindowOptions{Hidden: true, Title: "Session restored hidden", Width: 300, Height: 200, URL: "app://localhost/session/wrong",
+		Page: mygo.PageOptions{SessionState: state}})
+	waitFor(t, r, `document.title === "two" && document.readyState === "complete"`)
+	if runtime.GOOS == "windows" {
+		return
+	}
+	r.Show()
+	waitFor(t, r, `document.visibilityState === "visible"`)
+	waitFor(t, r, `scrollY === 1200`)
+	waitFor(t, r, `field.value === "typed second"`)
 }

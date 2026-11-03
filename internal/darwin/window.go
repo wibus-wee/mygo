@@ -9,7 +9,9 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
+	"github.com/ebitengine/purego"
 	"github.com/ebitengine/purego/objc"
 
 	"github.com/egoist/mygo/internal/bridge"
@@ -147,6 +149,10 @@ type window struct {
 	// cache off as its page left with a video in picture in picture
 	// (leavingPage).
 	pageCacheOff bool
+	// restoreScroll tells that RestoreSessionState brought a page back
+	// before its window first showed on screen, which loses the scroll
+	// position WebKit restored (restoreScrollOnScreen).
+	restoreScroll bool
 	// pipActive tells that the page's document has a video in picture in
 	// picture, as its pipScript last said.
 	pipActive bool
@@ -1868,7 +1874,87 @@ func (w *window) RestoreSessionState(state []byte) bool {
 		send(w.web, "setInteractionState:", uintptr(nsData(state)))
 		ok = send(send(w.web, "backForwardList"), "currentItem") != 0
 	})
+	w.restoreScroll = ok && !occlusionVisible(w.win)
 	return ok
+}
+
+// restoreScrollOnScreen has WebKit restore the scroll position of a page
+// RestoreSessionState brought back again, once its window first shows on
+// screen (restoreScroll). WebKit restores it as the page loads, and puts
+// a page that took a scroll position before its window first showed back
+// at the top as the window does (macOS 26): a window made hidden loses
+// it, and so does one shown as it opens when the page loads before the
+// window server puts the window on screen. WebKit restores it again after
+// it told the page that it shows and the page drew for that, from the
+// page's current history entry, which still holds it then (WebKit saves
+// the page's position into it a moment after it moved), and leaves a
+// page the user scrolled alone. It uses private API: -[WKWebView
+// _doAfterActivityStateUpdate:], _doAfterNextPresentationUpdate: and
+// _pageRefForTransitionToWKWebView, looked up with respondsToSelector:,
+// and WKPageTryRestoreScrollPosition, bound on first use.
+func (w *window) restoreScrollOnScreen() {
+	if !w.restoreScroll || w.closed || !occlusionVisible(w.win) {
+		return
+	}
+	w.restoreScroll = false
+	if !respondsTo(w.web, "_pageRefForTransitionToWKWebView") || !respondsTo(w.web, "_doAfterNextPresentationUpdate:") {
+		return
+	}
+	// WebKit tells the page it shows after the event that told WebKit,
+	// as this one did.
+	w.b.post(func() { w.doAfter("_doAfterActivityStateUpdate:", w.restoreScrollAfterDrawing) })
+}
+
+// restoreScrollAfterDrawing is restoreScrollOnScreen's restore, after the
+// page drew next.
+func (w *window) restoreScrollAfterDrawing() {
+	w.doAfter("_doAfterNextPresentationUpdate:", func() {
+		loadTryRestoreScroll.Do(func() {
+			if _, err := purego.Dlsym(libWebKit, "WKPageTryRestoreScrollPosition"); err == nil {
+				purego.RegisterLibFunc(&tryRestoreScroll, libWebKit, "WKPageTryRestoreScrollPosition")
+			}
+		})
+		if tryRestoreScroll != nil {
+			tryRestoreScroll(send(w.web, "_pageRefForTransitionToWKWebView"))
+		}
+	})
+}
+
+// doAfter has the web view call fn once it did what the private selector
+// of a block waits for, or calls fn now when WebKit lacks it; never once
+// the web view closed.
+func (w *window) doAfter(selector string, fn func()) {
+	if w.closed {
+		return
+	}
+	if !respondsTo(w.web, selector) {
+		fn()
+		return
+	}
+	withPool(func() {
+		blk := newBlock(func(objc.Block) {
+			if !w.closed {
+				fn()
+			}
+		})
+		send(w.web, selector, uintptr(blk))
+		blk.Release()
+	})
+}
+
+// tryRestoreScroll is WebKit's WKPageTryRestoreScrollPosition, which has
+// a page go back to the scroll position of its current history entry;
+// nil when WebKit has none.
+var (
+	tryRestoreScroll     func(page id)
+	loadTryRestoreScroll sync.Once
+)
+
+// occlusionVisible tells that some of a window shows on screen, as the
+// window server last said.
+func occlusionVisible(win id) bool {
+	const occlusionStateVisible = 1 << 1
+	return sendInt(win, "occlusionState")&occlusionStateVisible != 0
 }
 
 func (w *window) inspector() id {
@@ -2238,8 +2324,16 @@ func registerWindowClasses() {
 				}
 			}),
 			method("windowDidChangeOcclusionState:", func(self id, _ objc.SEL, n id) {
-				if w := b().windowFor(self); w != nil && w.surface != nil && w.surface.visible() {
+				w := b().windowFor(self)
+				if w == nil {
+					return
+				}
+				if w.surface != nil && w.surface.visible() {
 					w.surface.send(platform.SurfaceEvent{Kind: platform.SurfaceShown})
+				}
+				w.restoreScrollOnScreen()
+				for _, v := range w.webViews {
+					v.restoreScrollOnScreen()
 				}
 			}),
 			method("windowDidMiniaturize:", func(self id, _ objc.SEL, n id) {
