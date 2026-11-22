@@ -412,7 +412,7 @@ func (ed *editor) paintLine(p *ui.Painter, r ui.Rect, f *frame, line int, g line
 				continue
 			}
 			a, z := runeAt(l.text, max(b.Start-l.start, 0)), runeAt(l.text, min(b.End-l.start, len(l.text)))
-			ed.fillRange(p, f, l, row, ox, y, l.toDisp(a, false), l.toDisp(z, false), b.Color, 0)
+			ed.fillTextBackground(p, f, l, row, ox, y, a, z, b.Color)
 		}
 		// Words a diff changed.
 		if ed.o.decor != nil {
@@ -571,6 +571,27 @@ func runeAt(s string, i int) int {
 		i--
 	}
 	return i
+}
+
+// fillTextBackground fills source bytes a to z, skipping virtual inlay text.
+func (ed *editor) fillTextBackground(p *ui.Painter, f *frame, l *lineLayout, row *rowLayout, ox, y float32, a, z int, color ui.Color) {
+	da := l.toDisp(a, false)
+	for i, s := range l.segs {
+		if s.from > z {
+			break
+		}
+		if s.kind != segInlay || s.from < a {
+			continue
+		}
+		if s.from > a {
+			ed.fillRange(p, f, l, row, ox, y, da, s.disp, color, 0)
+		}
+		if s.from == z {
+			return
+		}
+		da = s.disp + segLen(l, i)
+	}
+	ed.fillRange(p, f, l, row, ox, y, da, l.toDisp(z, false), color, 0)
 }
 
 // fillRange fills displayed bytes a to b of a row.

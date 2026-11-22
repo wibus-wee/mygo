@@ -232,6 +232,44 @@ func TestTextBackgrounds(t *testing.T) {
 	ct.tt.Frame()
 }
 
+func TestTextBackgroundExcludesInlays(t *testing.T) {
+	const symbol = "subtotal"
+	blue := ui.RGB(0, 0, 255)
+	ct := newEditorTest(t, "", symbol+" += 7\nz|")
+	ct.st.Theme = &Theme{Background: ui.RGB(255, 255, 255)}
+	ct.st.NoActiveLine = true
+	ct.st.TextBackgrounds = []TextBackground{{Start: 0, End: len(symbol), Color: blue}}
+	tintedWidth := func() int {
+		ct.tt.Frame()
+		img := ct.tt.Image()
+		widest := 0
+		for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
+			width := 0
+			for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x++ {
+				if c := img.RGBAAt(x, y); c.B == 255 && c.R == 0 && c.G == 0 {
+					width++
+				}
+			}
+			widest = max(widest, width)
+		}
+		return widest
+	}
+	want := tintedWidth()
+	if !ct.blueAt(len(symbol)-1) || ct.blueAt(len(symbol)) {
+		t.Fatal("the highlight must include the last letter, but not the following space")
+	}
+	for _, offsets := range [][]int{{len(symbol)}, {0}, {3}, {3, 3}, {0, 3, len(symbol)}} {
+		var inlays []Inlay
+		for _, offset := range offsets {
+			inlays = append(inlays, Inlay{Offset: offset, Text: " int"})
+		}
+		ct.st.SetInlays(inlays)
+		if got := tintedWidth(); got != want {
+			t.Errorf("highlight width with inlays at %v = %dpx, want %dpx", offsets, got, want)
+		}
+	}
+}
+
 // ScrollY, SetScrollY and LineTop place lines in DIPs, as the editor lays
 // them out, wrapped lines taking their rows.
 func TestScrollYAndLineTop(t *testing.T) {
