@@ -9,7 +9,7 @@ import (
 
 func TestTrailingInlayHoverHitTest(t *testing.T) {
 	st := &State{Buffer: NewBuffer("abc\n"), HoverDelay: time.Second}
-	st.SetInlays([]Inlay{{Offset: 3, Text: "  You, 2 months ago • subject", Trailing: true}})
+	st.SetInlays(st.Buffer.Version(), []Inlay{{Offset: 3, Text: "  You, 2 months ago • subject", Trailing: true}})
 	var requests []HoverRequest
 	st.OnHover = func(r HoverRequest) { requests = append(requests, r) }
 	tt := ui.NewTester(func(c *ui.Context) { View(c, st).Fill() }, 900, 300)

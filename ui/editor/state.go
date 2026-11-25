@@ -525,10 +525,13 @@ func (st *State) ShowHover(start, end int, text string, build func(c *ui.Context
 }
 
 // SetInlays shows inlay hints in the lines, as types and parameter
-// names: they move with the edits until set again.
-func (st *State) SetInlays(inlays []Inlay) {
+// names, of the text at version, the buffer's Version when they were
+// made: those of an older version move with the edits since, as a
+// language server's that arrive late, and they move with the edits until
+// set again.
+func (st *State) SetInlays(version uint64, inlays []Inlay) {
 	st.ensure()
-	st.ed.setInlays(inlays)
+	st.ed.setInlays(version, inlays)
 }
 
 // SetReplacements shows ranges of the text as something else, as text,

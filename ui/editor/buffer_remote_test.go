@@ -580,7 +580,7 @@ func TestCodeEditorEditRemote(t *testing.T) {
 	tt.Frame()
 	b.Fold(2)
 	a.SetDiagnostics(buf.Version(), []Diagnostic{{Start: fn, End: fn + 3, Message: "unused"}})
-	a.SetInlays([]Inlay{{Offset: fn + 2, Text: "x int"}})
+	a.SetInlays(buf.Version(), []Inlay{{Offset: fn + 2, Text: "x int"}})
 	tt.Type("panic")
 	tt.Frame()
 

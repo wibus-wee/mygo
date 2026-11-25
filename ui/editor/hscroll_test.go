@@ -190,10 +190,10 @@ func TestHorizontalScrollAfterTabSize(t *testing.T) {
 // Taking a wide inlay away makes its line narrower.
 func TestHorizontalScrollAfterInlay(t *testing.T) {
 	st, tt := newScrollTest("short\nline")
-	st.SetInlays([]Inlay{{Offset: 5, Text: strings.Repeat("x", 500)}})
+	st.SetInlays(st.Buffer.Version(), []Inlay{{Offset: 5, Text: strings.Repeat("x", 500)}})
 	tt.Frame()
 	scrolledRight(t, st, tt)
-	st.SetInlays(nil)
+	st.SetInlays(st.Buffer.Version(), nil)
 	tt.Frame()
 	fits(t, st)
 }
@@ -204,7 +204,7 @@ func TestHorizontalScrollInlaysEveryFrame(t *testing.T) {
 	st, tt := longOutOfView(t)
 	at := st.Buffer.Offset(Pos{Line: 160})
 	for i := range 5 {
-		st.SetInlays([]Inlay{{Offset: at, Text: strings.Repeat("i", i+1)}})
+		st.SetInlays(st.Buffer.Version(), []Inlay{{Offset: at, Text: strings.Repeat("i", i+1)}})
 		tt.Frame()
 		if _, horizontal := st.ed.scrollbars(); !horizontal {
 			t.Fatalf("frame %d: no horizontal scrollbar, with the long line out of view", i)

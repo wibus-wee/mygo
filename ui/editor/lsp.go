@@ -504,8 +504,27 @@ func (v *view) inlaysChanged(old []inlay) {
 	}
 }
 
-// setInlays shows the inlay hints.
-func (ed *editor) setInlays(hints []Inlay) {
+// setInlays shows the inlay hints, as of version: those of an older
+// version move with the edits since, as a language server's that arrive
+// late. Hints of a version the buffer's log no longer keeps leave the
+// inlays as they are rather than move to where the text has moved on.
+func (ed *editor) setInlays(version uint64, hints []Inlay) {
+	hints = slices.Clone(hints)
+	if version != ed.view.version {
+		// Moved through the edits since, up to the text the editor shows.
+		entries, _, ok := ed.view.buf.entriesSince(version)
+		if !ok {
+			return
+		}
+		for _, e := range entries {
+			if e.version > ed.view.version {
+				break
+			}
+			for i := range hints {
+				hints[i].Offset = mapOffset(hints[i].Offset, e.changes, biasRight)
+			}
+		}
+	}
 	old := ed.view.keepInlays()
 	ed.view.inlays = slices.DeleteFunc(ed.view.inlays, func(in inlay) bool { return in.kind == 0 || in.kind == inlayTrailing })
 	for _, h := range hints {

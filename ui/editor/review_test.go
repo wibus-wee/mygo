@@ -483,7 +483,7 @@ func TestReviewSuggestion(t *testing.T) {
 func TestReviewTrailingInlay(t *testing.T) {
 	ct := newEditorTest(t, "", "abc|")
 	ed := &ct.st.ed
-	ct.st.SetInlays([]Inlay{{Offset: 3, Text: "  blame", Trailing: true}})
+	ct.st.SetInlays(ct.st.Buffer.Version(), []Inlay{{Offset: 3, Text: "  blame", Trailing: true}})
 	ct.tt.Frame()
 	l := ed.view.line(0)
 	if d := l.toDisp(3, true); d != 3 {
@@ -492,13 +492,13 @@ func TestReviewTrailingInlay(t *testing.T) {
 	if d := l.toDisp(3, false); d != 3 {
 		t.Fatalf("range end at displayed byte %d, past the trailing text", d)
 	}
-	ct.st.SetInlays([]Inlay{{Offset: 3, Text: "  hint"}})
+	ct.st.SetInlays(ct.st.Buffer.Version(), []Inlay{{Offset: 3, Text: "  hint"}})
 	ct.tt.Frame()
 	if d := ed.view.line(0).toDisp(3, true); d != len("abc  hint") {
 		t.Fatalf("caret at displayed byte %d, before the hint", d)
 	}
 	ct.st.SetSuggestion(3, "def")
-	ct.st.SetInlays(nil)
+	ct.st.SetInlays(ct.st.Buffer.Version(), nil)
 	if len(ed.view.inlays) != 1 || ed.view.inlays[0].kind != 1 {
 		t.Fatalf("inlays %+v, want the suggestion alone", ed.view.inlays)
 	}

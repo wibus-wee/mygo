@@ -9,7 +9,7 @@ import (
 
 func TestTrailingInlayEllipsisStaysOnOneRow(t *testing.T) {
 	st := &State{Buffer: NewBuffer("abc\n"), SoftWrap: true}
-	st.SetInlays([]Inlay{{
+	st.SetInlays(st.Buffer.Version(), []Inlay{{
 		Offset: 3, Text: "  You, 2 months ago • a commit subject too long for this editor",
 		Trailing: true, Ellipsis: "…",
 	}})
@@ -30,7 +30,7 @@ func TestTrailingInlayEllipsisStaysOnOneRow(t *testing.T) {
 func TestTrailingInlayEllipsisMeasuresReplacementWidths(t *testing.T) {
 	st := &State{Buffer: NewBuffer("abc\n"), SoftWrap: true}
 	st.SetReplacements([]Replacement{box(0, 1, 140, "Replacement")})
-	st.SetInlays([]Inlay{{
+	st.SetInlays(st.Buffer.Version(), []Inlay{{
 		Offset: 3, Text: "  You, 2 months ago • a commit subject too long for this editor",
 		Trailing: true, Ellipsis: "…",
 	}})
