@@ -231,6 +231,12 @@ func (ed *editor) accessibility(n *platform.AccessNode) {
 // menu is the editor's context menu: the editing commands, folding, and
 // the app's items.
 func (ed *editor) menu(m *ui.Menu) {
+	if ed.o.replaceMenu {
+		if ed.o.contextMenu != nil {
+			ed.o.contextMenu(m)
+		}
+		return
+	}
 	tx := ed.texts
 	has := slices.ContainsFunc(ed.sels, func(s sel) bool { return !s.empty() })
 	ro := ed.o.readOnly

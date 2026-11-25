@@ -130,6 +130,9 @@ type State struct {
 	// ContextMenu adds items to the editor's context menu, after its
 	// own.
 	ContextMenu func(m *ui.Menu)
+	// ReplaceContextMenu makes ContextMenu replace the editor's default
+	// context menu, including when opened from the keyboard.
+	ReplaceContextMenu bool
 	// GutterMarks marks lines in the gutter, as breakpoints or
 	// bookmarks: a dot of their color.
 	GutterMarks []GutterMark
@@ -264,7 +267,7 @@ func (st *State) options() options {
 		backgrounds: st.LineBackgrounds, textBgs: st.TextBackgrounds, diffBase: st.DiffBase, onCompletion: st.OnCompletion, onHover: st.OnHover, onDefinition: st.OnDefinition,
 		hoverDelay: st.HoverDelay, noPointerHover: st.NoPointerHover,
 		noDefinitionClick: st.NoDefinitionClick, noDefinitionLink: st.NoDefinitionLink,
-		onGutterClick: st.OnGutterClick, contextMenu: st.ContextMenu, onInput: st.OnInput, noInputMethod: st.NoInputMethod, minDigits: 3,
+		onGutterClick: st.OnGutterClick, contextMenu: st.ContextMenu, replaceMenu: st.ReplaceContextMenu, onInput: st.OnInput, noInputMethod: st.NoInputMethod, minDigits: 3,
 		renderFindBar: st.RenderFindBar, renderGoToLine: st.RenderGoToLine,
 		renderCompletions: st.RenderCompletions, renderHover: st.RenderHover,
 	}
